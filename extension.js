@@ -18,25 +18,23 @@
 const { St, Clutter, GObject, Meta, Shell, Gio } = imports.gi;
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
-const pointerWatcher = imports.ui.pointerWatcher.getPointerWatcher();
 const ExtensionUtils = imports.misc.extensionUtils;
 const Extension = ExtensionUtils.getCurrentExtension();
+
+const ReadingStrip = Extension.imports.readingStrip;
+
 const interval = 1000 / 60;
-const panelButtonIcon_on = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-on-symbolic.svg`);
-const panelButtonIcon_off = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-off-symbolic.svg`);
 
-let panelButton, panelButtonIcon;
-let strip_h, strip_v, focus_up, focus_down,  pointerWatch;
-let settings, setting_changed_signal_ids = [];
-let currentMonitor = Main.layoutManager.currentMonitor;
-let num_monitors = Main.layoutManager.monitors.length;
-let monitor_change_signal_id = 0;
+let indicator, panelButtonIcon;
+let readingStrip;
+let settings;
 
-// panel menu
-const ReadingStrip = GObject.registerClass(
-	class ReadingStrip extends PanelMenu.Button {
+// Indicator on panel
+const ReadingStripIndicator = GObject.registerClass(
+	class ReadingStripIndicator extends PanelMenu.Button {
 		_init() {
 			super._init(null, 'ReadingStrip');
+			const panelButtonIcon_off = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-off-symbolic.svg`);
 			panelButtonIcon = new St.Icon({
 				gicon : panelButtonIcon_off,
 				style_class: 'system-status-icon',
@@ -44,168 +42,40 @@ const ReadingStrip = GObject.registerClass(
 			});
 
 			this.add_actor(panelButtonIcon);
-			this.connect('button-press-event', toggleReadingStrip);
 		}
 	}
 );
 
-// follow cursor position, and monitor as well
-function syncStrip(monitor_changed = false) {
-	const [x, y] = global.get_pointer();
-	if (monitor_changed || num_monitors > 1) {
-		currentMonitor = Main.layoutManager.currentMonitor;
-		strip_h.x = currentMonitor.x;
-		strip_h.width = currentMonitor.width;
-
-		strip_v.x = x - strip_v.width;
-		strip_v.height = currentMonitor.height;
-
-		focus_up.width = currentMonitor.width;
-		focus_up.height = y - strip_h.height / 2;
-
-		focus_down.width = currentMonitor.width;
-		focus_down.height = currentMonitor.height - focus_up.height;
-	}
-
-	strip_h.y = y - strip_h.height / 2;
-	strip_v.y = currentMonitor.y;
-
-	focus_up.x = 0;
-	focus_up.y = 0;
-
-	focus_down.x = 0;
-	focus_down.y = y + strip_h.height / 2;
-}
-
-// toggle strip on or off
-function toggleReadingStrip() {
-	if (strip_h.visible) {
-		panelButtonIcon.gicon = panelButtonIcon_off;
-		pointerWatch.remove();
-		pointerWatch = null;
-	} else {
-		panelButtonIcon.gicon = panelButtonIcon_on;
-		syncStrip(true);
-		pointerWatch = pointerWatcher.addWatch(interval, syncStrip);
-	}
-	strip_h.visible = !strip_h.visible;
-	strip_v.visible = strip_h.visible;
-	focus_up.visible = strip_h.visible;
-	focus_down.visible = strip_h.visible;
-	settings.set_boolean('enabled', strip_h.visible);
-}
-
 function enable() {
-    settings = ExtensionUtils.getSettings();
+	settings = ExtensionUtils.getSettings();
 
 	// add button to top panel
-	panelButton = new ReadingStrip();
-	Main.panel.addToStatusArea('ReadingStrip', panelButton);
-
-	// create horizontal strip
-	strip_h = new St.Widget({
-		reactive: false,
-		can_focus: false,
-		track_hover: false,
-		visible: false
+	indicator = new ReadingStripIndicator();
+	indicator.connect('button-press-event', () => {
+		readingStrip = new ReadingStrip.ReadingStrip(settings, indicator);
+		readingStrip.toggleReadingStrip(panelButtonIcon);
 	});
-	Main.uiGroup.add_child(strip_h);
-
-	// create vertical strip
-	strip_v = new St.Widget({
-		reactive: false,
-		can_focus: false,
-		track_hover: false,
-		visible: false
-	});
-	Main.uiGroup.add_child(strip_v);
-
-	// create  - focus
-	focus_up = new St.Widget({
-		reactive: false,
-		can_focus: false,
-		track_hover: false,
-		visible: false,
-		opacity: 75 * 255/100
-	});
-	Main.uiGroup.add_child(focus_up);
-
-	focus_down = new St.Widget({
-		reactive: false,
-		can_focus: false,
-		track_hover: false,
-		visible: false,
-		opacity: 75 * 255/100
-	});
-	Main.uiGroup.add_child(focus_down);
-
-	// synchronize extension state with current settings
-	setting_changed_signal_ids.push(settings.connect('changed', () => {
-		strip_h.style = 'background-color : ' + settings.get_string('color-strip');
-		strip_h.opacity = settings.get_double('opacity') * 255/100;
-		strip_h.height = settings.get_double('height') * currentMonitor.height/100;
-
-		strip_v.visible = strip_h.visible && settings.get_boolean('vertical');
-		strip_v.style = strip_h.style;
-		strip_v.opacity = strip_h.opacity;
-		strip_v.width = strip_h.height / 4;
-
-		focus_up.visible = strip_h.visible && settings.get_boolean('focusmode');
-		focus_up.style = 'background-color : ' + settings.get_string('color-focus');
-
-		focus_down.visible = strip_h.visible && settings.get_boolean('focusmode');
-		focus_down.style = 'background-color : ' + settings.get_string('color-focus');
-	}));
-
-	// load previous state
-	if (settings.get_boolean('enabled'))
-		toggleReadingStrip();
-
-	// synchronize hot key
-	Main.wm.addKeybinding('hotkey', settings,
-						  Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-						  Shell.ActionMode.ALL,
-						  () => {
-							  toggleReadingStrip();
-						  }
-						 );
-
-	// watch for monitor changes
-	monitor_change_signal_id = Main.layoutManager.connect('monitors-changed', () => {
-		num_monitors = Main.layoutManager.monitors.length;
-	});
+	Main.panel.addToStatusArea('ReadingStrip', indicator);
 
 	// sync with current monitor
-	syncStrip(true);
+	readingStrip.syncStrip(true);
 }
 
 function disable() {
-	// remove monitor change watch
-	if (monitor_change_signal_id)
-		Main.layoutManager.disconnect(monitor_change_signal_id);
-
 	Main.wm.removeKeybinding('hotkey');
-	setting_changed_signal_ids.forEach(id => settings.disconnect(id));
-	setting_changed_signal_ids = [];
-	settings = null;
 
-	panelButton.destroy();
-	panelButton = null;
-	Main.uiGroup.remove_child(strip_h);
-	Main.uiGroup.remove_child(strip_v);
-
-	if (pointerWatch){
-		pointerWatch.remove();
-		pointerWatch = null;
+	if (indicator) {
+		indicator.destroy();
+		indicator = null;
 	}
 
-	strip_h.destroy();
-	strip_h = null;
-	strip_v.destroy();
-	strip_v = null;
+	if (readingStrip) {
+		readingStrip.destroy();
+		readingStrip = null;
+	}
 
-	focus_up.destroy();
-	focus_up = null
-	focus_down.destroy();
-	focus_down = null;
+	if (settings) {
+		settings = null;
+	}
+
 }
