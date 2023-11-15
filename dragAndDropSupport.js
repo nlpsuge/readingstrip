@@ -1,10 +1,12 @@
+const { Meta } = imports.gi;
+
 const Main = imports.ui.main;
 const DND = imports.ui.dnd;
 
 
 var DragAndDropSupport = class {
     
-    constructor(targetWidget) {        
+    constructor(targetWidget) {
         
 
         if (!targetWidget.acceptDrop) {
@@ -45,22 +47,23 @@ var DragAndDropSupport = class {
 
         targetWidget.connect('destroy', () => {
             log('ddd destroy')
+            this._inDrag = false;
         });
 
 
         this._targetWidget = targetWidget;
-        log(this._targetWidget)
-        log(this._targetWidget._delegate)
-        log(this._targetWidget.acceptDrop)
-        log(this._targetWidget.getDragActor)
+        log('this._targetWidget ' + this._targetWidget)
+        log('this._targetWidget._delegate ' + this._targetWidget._delegate)
+        log('this._targetWidget.acceptDrop ' + this._targetWidget.acceptDrop)
+        log('this._targetWidget.getDragActor ' + this._targetWidget.getDragActor)
 
     }
 
     makeDraggable() {
         this._draggable = DND.makeDraggable(this._targetWidget, {
-            restoreOnSuccess: false,
-            manualMode: false,
-            dragActorMaxSize: null,
+            // restoreOnSuccess: false,
+            // manualMode: false,
+            // dragActorMaxSize: null,
             dragActorOpacity: 128
         });
         this._draggable.connect('drag-begin', this._onDragBegin.bind(this));
@@ -71,6 +74,7 @@ var DragAndDropSupport = class {
     }
 
     _onDragBegin(_draggable, _time) {
+        log('_onDragBegin ')
         // this._removeFromLayoutIfNecessary();
 
         this.inDrag = true;
@@ -82,14 +86,23 @@ var DragAndDropSupport = class {
     }
 
     _onDragDrop(dropEvent) {
-        this._draggable._dragState = DND.DragState.DRAGGING;
+        log('_onDragDrop dropEvent ' + dropEvent)
+        // DND.DragState.DRAGGING
+        log('this._draggable._dragState ' + this._draggable._dragState)
+        // this._draggable._dragState = DND.DragState.DRAGGING;
         this._dropTarget = dropEvent.targetActor;
-        log('_onDragDrop ' + this._targetWidget.visible)
+        log('_onDragDrop this._targetWidget.visible ' + this._targetWidget.visible)
         log('_onDragDrop DND.DragMotionResult.SUCCESS ' + DND.DragMotionResult.SUCCESS)
+        log('_onDragDrop DND.DragDropResult.SUCCESS ' + DND.DragDropResult.SUCCESS)
         log('_onDragDrop DND.DragDropResult.FAILURE ' + DND.DragDropResult.FAILURE)
+        log('_onDragDrop DND.DragMotionResult.CONTINUE ' + DND.DragMotionResult.CONTINUE)
         // return DND.DragMotionResult.SUCCESS;
-        return DND.DragMotionResult.CONTINUE;
+        // return DND.DragMotionResult.CONTINUE;
         // return 1;
+        global.display.set_cursor(Meta.Cursor.DEFAULT);
+        this._draggable.emit('drag-end');
+        this._draggable._dragComplete();
+        return DND.DragDropResult.SUCCESS;
     }
 
     _removeFromLayoutIfNecessary() {
@@ -103,6 +116,10 @@ var DragAndDropSupport = class {
     }
 
     _onDragMotion(dropEvent) {
+        // if (!this._inDrag) {
+        //     return DND.DragMotionResult.NO_DROP;
+        // }
+
         // let [dropX, dropY] = dropEvent.get_coords();
         // const target = actor.get_stage().get_actor_at_pos(Clutter.PickMode.ALL,
         //     dropX, dropY)
@@ -120,13 +137,17 @@ var DragAndDropSupport = class {
     _onDragCancelled(_draggable, _time) {
         this._inDrag = false;
         log('this._targetWidget drag cancel ' + this._targetWidget + ' ' + this._targetWidget.visible + ' ' + Main.uiGroup.contains(this._targetWidget))
+        this._targetWidget.set_position(this._draggable._dragOffsetX + this._draggable._dragX, this._draggable._dragOffsetY + this._draggable._dragY);
 
     }
 
     _onDragEnd(_draggable, _time, _snapback) {
         this._inDrag = false;
+        log('DND.dragMonitors ' + DND.dragMonitors);
         DND.removeDragMonitor(this._dragMonitor);
         log('this._targetWidget drag end ' + this._targetWidget)
+        this._targetWidget.set_position(this._draggable._dragOffsetX + this._draggable._dragX, this._draggable._dragOffsetY + this._draggable._dragY);
+
     }
 
 }

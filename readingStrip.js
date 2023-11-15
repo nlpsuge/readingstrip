@@ -21,6 +21,14 @@ var ReadingStrip = class {
     constructor(settings, indicator) {
         this.settings = settings;
 
+        this.layout_h = new St.BoxLayout({
+            reactive: true,
+            can_focus: true,
+            track_hover: true,
+            // visible: false,
+            vertical: false,
+        });
+
         // create horizontal strip
         this.strip_h = new St.Widget({
             reactive: true,
@@ -29,23 +37,31 @@ var ReadingStrip = class {
             visible: false
         });
 
-        log('strip_h.get_actor() ' + this.strip_h.get_actor())
+        log('strip_h.get_actor() 1' + this.strip_h.get_actor())
 
-        this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(this.strip_h);
+        this.layout_h.add(this.strip_h);
+
+        // this.strip_h.add_actor(this.layout_h);
+
+        log('strip_h.get_actor() 2' + this.strip_h.get_actor())
+        
+
+        this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(this.layout_h);
         const md = this.dragAndDropSupport.makeDraggable();
         
         // Main.uiGroup.add_child(this.strip_h);
         // Main.uiGroup.add_child(this.strip_h.actor);
-        Main.uiGroup.add_actor(this.strip_h);
+        // Main.uiGroup.add_actor(this.strip_h);
         // Main.layoutManager.addChrome(this.strip_h);
+        Main.layoutManager.addChrome(this.layout_h);
         // Main.layoutManager.addChrome(this.strip_h.actor);
         // Main.layoutManager.addTopChrome(this.strip_h);
 
-        this.strip_h.connect('event', this._onEvent.bind(md));
+        // this.layout_h.connect('event', this._onEvent.bind(md));
 
         md.dragAndDropSupport = this.dragAndDropSupport;
 
-        md._dragActorDropped = this._dragActorDropped.bind(md);
+        // md._dragActorDropped = this._dragActorDropped.bind(md);
 
 
         // create vertical strip
@@ -90,7 +106,10 @@ var ReadingStrip = class {
     }
 
     _dragActorDropped(event) {
+        log('event ' + event + ' ' + this._eventIsRelease(event))
         let [dropX, dropY] = event.get_coords();
+        log('dropX ' + dropX)
+        log('dropY ' + dropY)
         let target = this._dragActor.get_stage().get_actor_at_pos(Clutter.PickMode.ALL,
                                                                   dropX, dropY);
         log('_dragActorDropped target ' + target)
@@ -105,7 +124,8 @@ var ReadingStrip = class {
             clutterEvent: event,
         };
         dragMonitors.push(this.dragAndDropSupport._dragMonitor);
-        log(this.dragAndDropSupport._dragMonitor)
+        log('this.dragAndDropSupport._dragMonitor ' + this.dragAndDropSupport._dragMonitor)
+        log('this.dragAndDropSupport._dragMonitor len' + this.dragAndDropSupport._dragMonitor.length)
         for (let i = 0; i < dragMonitors.length; i++) {
             let dropFunc = dragMonitors[i].dragDrop;
             if (dropFunc) {
@@ -114,7 +134,7 @@ var ReadingStrip = class {
                 log('DND.DragMotionResult.SUCCESS ' + DND.DragMotionResult.SUCCESS)
                 switch (dragDropResult) {
                 case DND.DragDropResult.FAILURE:
-                case DND.DragMotionResult.SUCCESS:
+                case DND.DragDropResult.SUCCESS:
                     return true;
                 case DND.DragDropResult.CONTINUE:
                     continue;
@@ -166,8 +186,42 @@ var ReadingStrip = class {
             target = target.get_parent();
         }
 
-        log('xxxxx4 _cancelDrag ' + target)
-        this._cancelDrag(event.get_time());
+        log('xxxxx4 before _cancelDrag ' + target)
+        log('xxxxx4 before _cancelDrag this._actorDestroyed ' + this._actorDestroyed)
+        log('xxxxx4 before _cancelDrag this._dragState ' + this._dragState)
+        log('xxxxx4 before _cancelDrag this._dragOrigParent ' + this._dragOrigParent)
+        log('xxxxx4 before _cancelDrag this._dragActor ' + this._dragActor)
+        // this._cancelDrag(event.get_time());
+
+        const eventTime = event.get_time();
+        this.emit('drag-cancelled', eventTime);
+        let wasCancelled = this._dragState === DragState.CANCELLED;
+        this._dragState = DragState.CANCELLED;
+
+        log('wasCancelled ' + wasCancelled);
+        log('this._actorDestroyed ' + this._actorDestroyed);
+        if (this._actorDestroyed || wasCancelled) {
+            global.display.set_cursor(Meta.Cursor.DEFAULT);
+            this._dragComplete();
+            this.emit('drag-end', eventTime, false);
+            log('this._dragOrigParent ' + this._dragOrigParent);
+            log('this._dragActor ' + this._dragActor);
+            if (!this._dragOrigParent && this._dragActor)
+                this._dragActor.destroy();
+
+            return;
+        }
+
+        log('sssss ')
+        let [snapBackX, snapBackY, snapBackScale] = this._getRestoreLocation();
+
+        this._animateDragEnd(eventTime, {
+            x: snapBackX,
+            y: snapBackY,
+            scale_x: snapBackScale,
+            scale_y: snapBackScale,
+            duration: SNAP_BACK_ANIMATION_TIME,
+        });
 
         return true;
     }
@@ -187,6 +241,7 @@ var ReadingStrip = class {
         if (this._eventIsRelease(event)) {
             this._buttonDown = false;
             if (this._dragState == DragState.DRAGGING) {
+                log('run into _dragActorDropped ' + this._dragState)
                 return this._dragActorDropped(event);
             } else if ((this._dragActor != null || this._dragState == DragState.CANCELLED) &&
                        !this._animationInProgress) {

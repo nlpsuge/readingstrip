@@ -58,7 +58,7 @@ function enable() {
 	Main.panel.addToStatusArea('ReadingStrip', indicator);
 
 	// sync with current monitor
-	readingStrip.syncStrip(true);
+	// readingStrip.syncStrip(true);
 }
 
 function disable() {
