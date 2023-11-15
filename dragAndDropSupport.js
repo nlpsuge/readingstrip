@@ -9,36 +9,36 @@ var DragAndDropSupport = class {
     constructor(targetWidget) {
         
 
-        if (!targetWidget.acceptDrop) {
-            // Implement the acceptDrop function
-            // So the widget dragging will not be disappeared because it is destroyed (not working TODO, override destroy function instead ),
-            // See the dnd.js#_Draggable#_dragActorDropped source code for more details
-            targetWidget.acceptDrop = function() {
-                return true;
-            }
-        }
+        // if (!targetWidget.acceptDrop) {
+        //     // Implement the acceptDrop function
+        //     // So the widget dragging will not be disappeared because it is destroyed (not working TODO, override destroy function instead ),
+        //     // See the dnd.js#_Draggable#_dragActorDropped source code for more details
+        //     targetWidget.acceptDrop = function() {
+        //         return true;
+        //     }
+        // }
 
-        if (!targetWidget._delegate) {
-            // variable _delegate works with getDragActor, see getDragActor
-            targetWidget._delegate = targetWidget;
-        }
+        // if (!targetWidget._delegate) {
+        //     // variable _delegate works with getDragActor, see getDragActor
+        //     targetWidget._delegate = targetWidget;
+        // }
 
-        if (!targetWidget._delegate.getDragActor) {
-            // Implement the getDragActor function
-            // getDragActor works with variable _delegate,
-            // so the target widget can be moved by one-click of mouse
-            targetWidget._delegate.getDragActor = function() {
-                return targetWidget.get_actor();
-            }
-        }
+        // if (!targetWidget._delegate.getDragActor) {
+        //     // Implement the getDragActor function
+        //     // getDragActor works with variable _delegate,
+        //     // so the target widget can be moved by one-click of mouse
+        //     targetWidget._delegate.getDragActor = function() {
+        //         return targetWidget.get_actor();
+        //     }
+        // }
 
-        const actor = targetWidget._delegate.getDragActor();
-        if (!actor.destroy) {
-            actor.destroy = function() {
-                // This function is called when drag is canceled, but the dialog should be always shown.
-                // So we override it but do nothing.
-            }
-        }
+        // const actor = targetWidget._delegate.getDragActor();
+        // if (!actor.destroy) {
+        //     actor.destroy = function() {
+        //         // This function is called when drag is canceled, but the dialog should be always shown.
+        //         // So we override it but do nothing.
+        //     }
+        // }
         
 
         targetWidget.connect('notify::visible', () => {
@@ -46,7 +46,7 @@ var DragAndDropSupport = class {
         });
 
         targetWidget.connect('destroy', () => {
-            log('ddd destroy')
+            log('ddd destroy ' + this._draggable._dragState + ' ' + this._draggable._actorDestroyed)
             this._inDrag = false;
         });
 
@@ -61,7 +61,7 @@ var DragAndDropSupport = class {
 
     makeDraggable() {
         this._draggable = DND.makeDraggable(this._targetWidget, {
-            // restoreOnSuccess: false,
+            restoreOnSuccess: true,
             // manualMode: false,
             // dragActorMaxSize: null,
             dragActorOpacity: 128
@@ -136,7 +136,7 @@ var DragAndDropSupport = class {
 
     _onDragCancelled(_draggable, _time) {
         this._inDrag = false;
-        log('this._targetWidget drag cancel ' + this._targetWidget + ' ' + this._targetWidget.visible + ' ' + Main.uiGroup.contains(this._targetWidget))
+        log('this._targetWidget drag cancel ' + this._targetWidget + ' ' + this._targetWidget.visible + ' ' + Main.uiGroup.contains(this._targetWidget) + ' ' + this._draggable._dragState + ' ' + this._draggable._actorDestroyed)
         this._targetWidget.set_position(this._draggable._dragOffsetX + this._draggable._dragX, this._draggable._dragOffsetY + this._draggable._dragY);
 
     }

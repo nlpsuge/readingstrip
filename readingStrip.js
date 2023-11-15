@@ -61,9 +61,6 @@ var ReadingStrip = class {
 
         md.dragAndDropSupport = this.dragAndDropSupport;
 
-        // md._dragActorDropped = this._dragActorDropped.bind(md);
-
-
         // create vertical strip
         this.strip_v = new St.Widget({
             reactive: true,
@@ -105,128 +102,8 @@ var ReadingStrip = class {
 
     }
 
-    _dragActorDropped(event) {
-        log('event ' + event + ' ' + this._eventIsRelease(event))
-        let [dropX, dropY] = event.get_coords();
-        log('dropX ' + dropX)
-        log('dropY ' + dropY)
-        let target = this._dragActor.get_stage().get_actor_at_pos(Clutter.PickMode.ALL,
-                                                                  dropX, dropY);
-        log('_dragActorDropped target ' + target)
-        log('this._dragActor ' + this._dragActor)
-        log('this._dragActor.get_stage() ' + this._dragActor.get_stage())
-        // We call observers only once per motion with the innermost
-        // target actor. If necessary, the observer can walk the
-        // parent itself.
-        let dropEvent = {
-            dropActor: this._dragActor,
-            targetActor: target,
-            clutterEvent: event,
-        };
-        dragMonitors.push(this.dragAndDropSupport._dragMonitor);
-        log('this.dragAndDropSupport._dragMonitor ' + this.dragAndDropSupport._dragMonitor)
-        log('this.dragAndDropSupport._dragMonitor len' + this.dragAndDropSupport._dragMonitor.length)
-        for (let i = 0; i < dragMonitors.length; i++) {
-            let dropFunc = dragMonitors[i].dragDrop;
-            if (dropFunc) {
-                const dragDropResult = dropFunc(dropEvent);
-                log('dragDropResult ' + dragDropResult)
-                log('DND.DragMotionResult.SUCCESS ' + DND.DragMotionResult.SUCCESS)
-                switch (dragDropResult) {
-                case DND.DragDropResult.FAILURE:
-                case DND.DragDropResult.SUCCESS:
-                    return true;
-                case DND.DragDropResult.CONTINUE:
-                    continue;
-                }
-            }
-        }
-
-        // At this point it is too late to cancel a drag by destroying
-        // the actor, the fate of which is decided by acceptDrop and its
-        // side-effects
-        this._dragCancellable = false;
-
-        while (target) {
-            log('xxxxx3 target ' + target)
-            log('target._delegate ' + target._delegate)
-            log('target._delegate.acceptDrop ' + target._delegate?.acceptDrop)
-            if (target._delegate && target._delegate.acceptDrop) {
-                log('xxxx4')
-                let [r_, targX, targY] = target.transform_stage_point(dropX, dropY);
-                let accepted = false;
-                try {
-                    accepted = target._delegate.acceptDrop(this.actor._delegate,
-                        this._dragActor, targX, targY, event.get_time());
-                    log('xxxx5 ' + accepted)
-                } catch (e) {
-                    // On error, skip this target
-                    logError(e, "Skipping drag target");
-                }
-                if (accepted) {
-                    // If it accepted the drop without taking the actor,
-                    // handle it ourselves.
-                    if (this._dragActor && this._dragActor.get_parent() == Main.uiGroup) {
-                        if (this._restoreOnSuccess) {
-                            this._restoreDragActor(event.get_time());
-                            return true;
-                        } else {
-                            log('xxxx6 ')
-                            this._dragActor.destroy();
-                        }
-                    }
-
-                    this._dragState = DragState.INIT;
-                    global.display.set_cursor(Meta.Cursor.DEFAULT);
-                    this.emit('drag-end', event.get_time(), true);
-                    this._dragComplete();
-                    return true;
-                }
-            }
-            target = target.get_parent();
-        }
-
-        log('xxxxx4 before _cancelDrag ' + target)
-        log('xxxxx4 before _cancelDrag this._actorDestroyed ' + this._actorDestroyed)
-        log('xxxxx4 before _cancelDrag this._dragState ' + this._dragState)
-        log('xxxxx4 before _cancelDrag this._dragOrigParent ' + this._dragOrigParent)
-        log('xxxxx4 before _cancelDrag this._dragActor ' + this._dragActor)
-        // this._cancelDrag(event.get_time());
-
-        const eventTime = event.get_time();
-        this.emit('drag-cancelled', eventTime);
-        let wasCancelled = this._dragState === DragState.CANCELLED;
-        this._dragState = DragState.CANCELLED;
-
-        log('wasCancelled ' + wasCancelled);
-        log('this._actorDestroyed ' + this._actorDestroyed);
-        if (this._actorDestroyed || wasCancelled) {
-            global.display.set_cursor(Meta.Cursor.DEFAULT);
-            this._dragComplete();
-            this.emit('drag-end', eventTime, false);
-            log('this._dragOrigParent ' + this._dragOrigParent);
-            log('this._dragActor ' + this._dragActor);
-            if (!this._dragOrigParent && this._dragActor)
-                this._dragActor.destroy();
-
-            return;
-        }
-
-        log('sssss ')
-        let [snapBackX, snapBackY, snapBackScale] = this._getRestoreLocation();
-
-        this._animateDragEnd(eventTime, {
-            x: snapBackX,
-            y: snapBackY,
-            scale_x: snapBackScale,
-            scale_y: snapBackScale,
-            duration: SNAP_BACK_ANIMATION_TIME,
-        });
-
-        return true;
-    }
-
     _onEvent(actor, event) {
+        log('_onEvent')
         let device = event.get_device();
 
         if (this._grabbedDevice &&
@@ -268,6 +145,7 @@ var ReadingStrip = class {
         } else if (event.type() == Clutter.EventType.KEY_PRESS && this._dragState == DragState.DRAGGING) {
             let symbol = event.get_key_symbol();
             if (symbol == Clutter.KEY_Escape) {
+                log('pressed escape')
                 this._cancelDrag(event.get_time());
                 return Clutter.EVENT_STOP;
             }
