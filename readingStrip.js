@@ -41,23 +41,12 @@ var ReadingStrip = class {
 
         this.layout_h.add(this.strip_h);
 
-        // this.strip_h.add_actor(this.layout_h);
-
-        log('strip_h.get_actor() 2' + this.strip_h.get_actor())
-        
+        log('strip_h.get_actor() 2' + this.strip_h.get_actor())        
 
         this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(this.layout_h);
         const md = this.dragAndDropSupport.makeDraggable();
-        
-        // Main.uiGroup.add_child(this.strip_h);
-        // Main.uiGroup.add_child(this.strip_h.actor);
-        // Main.uiGroup.add_actor(this.strip_h);
-        // Main.layoutManager.addChrome(this.strip_h);
-        Main.layoutManager.addChrome(this.layout_h);
-        // Main.layoutManager.addChrome(this.strip_h.actor);
-        // Main.layoutManager.addTopChrome(this.strip_h);
 
-        // this.layout_h.connect('event', this._onEvent.bind(md));
+        Main.layoutManager.addChrome(this.layout_h);
 
         md.dragAndDropSupport = this.dragAndDropSupport;
 
@@ -68,9 +57,8 @@ var ReadingStrip = class {
             track_hover: true,
             visible: false
         });
-        // Main.uiGroup.add_child(this.strip_v);
+
         // Main.layoutManager.addChrome(this.strip_v);
-        // Main.uiGroup.addChrome(this.strip_v.actor);
 
         this.setting_changed_signal_ids = [];
 
@@ -100,58 +88,6 @@ var ReadingStrip = class {
                             }
                             );
 
-    }
-
-    _onEvent(actor, event) {
-        log('_onEvent')
-        let device = event.get_device();
-
-        if (this._grabbedDevice &&
-            device != this._grabbedDevice &&
-            device.get_device_type() != Clutter.InputDeviceType.KEYBOARD_DEVICE)
-            return Clutter.EVENT_PROPAGATE;
-
-        // We intercept BUTTON_RELEASE event to know that the button was released in case we
-        // didn't start the drag, to drop the draggable in case the drag was in progress, and
-        // to complete the drag and ensure that whatever happens to be under the pointer does
-        // not get triggered if the drag was cancelled with Esc.
-        if (this._eventIsRelease(event)) {
-            this._buttonDown = false;
-            if (this._dragState == DragState.DRAGGING) {
-                log('run into _dragActorDropped ' + this._dragState)
-                return this._dragActorDropped(event);
-            } else if ((this._dragActor != null || this._dragState == DragState.CANCELLED) &&
-                       !this._animationInProgress) {
-                // Drag must have been cancelled with Esc.
-                this._dragComplete();
-                return Clutter.EVENT_STOP;
-            } else {
-                // Drag has never started.
-                this._ungrabActor();
-                return Clutter.EVENT_PROPAGATE;
-            }
-        // We intercept MOTION event to figure out if the drag has started and to draw
-        // this._dragActor under the pointer when dragging is in progress
-        } else if (event.type() == Clutter.EventType.MOTION ||
-                   (event.type() == Clutter.EventType.TOUCH_UPDATE &&
-                    global.display.is_pointer_emulating_sequence(event.get_event_sequence()))) {
-            if (this._dragActor && this._dragState == DragState.DRAGGING)
-                return this._updateDragPosition(event);
-            else if (this._dragActor == null && this._dragState != DragState.CANCELLED)
-                return this._maybeStartDrag(event);
-
-        // We intercept KEY_PRESS event so that we can process Esc key press to cancel
-        // dragging and ignore all other key presses.
-        } else if (event.type() == Clutter.EventType.KEY_PRESS && this._dragState == DragState.DRAGGING) {
-            let symbol = event.get_key_symbol();
-            if (symbol == Clutter.KEY_Escape) {
-                log('pressed escape')
-                this._cancelDrag(event.get_time());
-                return Clutter.EVENT_STOP;
-            }
-        }
-
-        return Clutter.EVENT_PROPAGATE;
     }
 
     // toggle strip on or off
@@ -190,7 +126,6 @@ var ReadingStrip = class {
     }
 
     destroy() {
-        log('destroy')
         Main.uiGroup.remove_child(this.strip_h);
         Main.uiGroup.remove_child(this.strip_v);
 
