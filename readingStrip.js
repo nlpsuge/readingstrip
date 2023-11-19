@@ -1,4 +1,4 @@
-const { St, Meta, Shell, Clutter, Gio } = imports.gi;
+const { St, Meta, Shell, Clutter, Gio, GLib } = imports.gi;
 
 const Main = imports.ui.main;
 const DND = imports.ui.dnd;
@@ -10,76 +10,13 @@ const DragAndDropSupport = Extension.imports.dragAndDropSupport;
 const WindowPicker = Extension.imports.utils.WindowPicker;
 const MetaWindowUtils = Extension.imports.utils.metaWindowUtils;
 
-var DragState = {
-    INIT:      0,
-    DRAGGING:  1,
-    CANCELLED: 2,
-};
-
-var dragMonitors = [];
 
 var ReadingStrip = class {
 
     constructor(settings, indicator) {
         this.settings = settings;
 
-        this.layout_h = new St.BoxLayout({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            // visible: false,
-            vertical: false,
-        });
-
-        // create horizontal strip
-        this.strip_h = new St.Widget({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            visible: false
-        });
-
-        log('strip_h.get_actor() 1' + this.strip_h.get_actor())
-
-        this.layout_h.add(this.strip_h);
-
-        log('strip_h.get_actor() 2' + this.strip_h.get_actor())        
-
-        this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(this.layout_h);
-        const md = this.dragAndDropSupport.makeDraggable();
-
-        Main.layoutManager.addChrome(this.layout_h);
-
-        md.dragAndDropSupport = this.dragAndDropSupport;
-
-        // create vertical strip
-        this.strip_v = new St.Widget({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            visible: false
-        });
-
-        // Main.layoutManager.addChrome(this.strip_v);
-
         this.setting_changed_signal_ids = [];
-
-        // synchronize extension state with current settings
-        this.setting_changed_signal_ids.push(this.settings.connect('changed', () => {
-            this.strip_h.style = 'background-color : ' + this.settings.get_string('color-strip');
-            this.strip_h.opacity = this.settings.get_double('opacity') * 255/100;
-            let currentMonitor = Main.layoutManager.currentMonitor;
-            this.strip_h.height = this.settings.get_double('height') * currentMonitor.height/100;
-
-            this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
-            this.strip_v.style = this.strip_h.style;
-            this.strip_v.opacity = this.strip_h.opacity;
-            this.strip_v.width = this.strip_h.height / 4;
-        }));
-
-        // load previous state
-        // if (this.settings.get_boolean('enabled'))
-        //     this.toggleReadingStrip(indicator);
 
         // synchronize hot key
         Main.wm.addKeybinding('hotkey', settings,
@@ -90,22 +27,6 @@ var ReadingStrip = class {
                             }
                             );
 
-    }
-
-    // toggle strip on or off
-    toggleReadingStrip1(indicator) {
-        const panelButtonIcon_on = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-on-symbolic.svg`);
-        const panelButtonIcon_off = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-off-symbolic.svg`);
-
-        if (this.strip_h.visible) {
-            indicator.gicon = panelButtonIcon_off;
-        } else {
-            indicator.gicon = panelButtonIcon_on;
-            this.syncStrip(true);
-        }
-        this.strip_h.visible = !this.strip_h.visible;
-        this.strip_v.visible = this.strip_h.visible;
-        this.settings.set_boolean('enabled', this.strip_h.visible);
     }
 
     toggleReadingStrip(indicator) {
@@ -135,15 +56,34 @@ var ReadingStrip = class {
 			const [windowId] = windowIdArray;
 
             let targetMetaWindow = this.getMetaWindowById(windowId);
-            if (targetMetaWindow) {                
+            if (targetMetaWindow) {
                 const targetMetaWindowRect = targetMetaWindow.get_frame_rect();
                 const y = targetMetaWindowRect.y + Math.round(targetMetaWindowRect.height * 0.8);
-                // this.layout_h.width = targetMetaWindowRect.width;
-                // this.layout_h.set_position(targetMetaWindowRect.x, y);
-                log(targetMetaWindowRect.x)
-                log(targetMetaWindowRect.y);
-                this.layout_h.set_position(targetMetaWindowRect.x, targetMetaWindowRect.y);
-                this.layout_h.visible = true;
+                log(targetMetaWindow.get_title() + ' ' + y)
+                
+                const stripCoverWidget = new St.Widget({
+                    reactive: true,
+                    can_focus: true,
+                    track_hover: true,
+                    visible: true
+                });
+        
+                this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(stripCoverWidget);
+                this.dragAndDropSupport.makeDraggable();
+
+                stripCoverWidget.set_position(targetMetaWindowRect.x, targetMetaWindowRect.y);
+                stripCoverWidget.height =  targetMetaWindowRect.height;
+                stripCoverWidget.style = 'background-color : rgb(246,211,45)';
+                stripCoverWidget.visible = true;
+                stripCoverWidget.opacity = 40;
+                Main.uiGroup.add_child(stripCoverWidget);
+
+                // this._idleIdStripCoverWidget = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                //     Main.uiGroup.add_child(stripCoverWidget);
+                //     this._idleIdStripCoverWidget = null;
+                //     return GLib.SOURCE_REMOVE;
+                // });
+                
             }
 		});
 
@@ -153,28 +93,6 @@ var ReadingStrip = class {
             this._dbusConnection = null;
         });
 
-    }
-
-    _closeTopLayer(indicator) {
-        if (indicator.menu) {
-            // If we don't close the indicator menu here, two hidden
-            // layers will be on the top of screen.
-
-            // The first layer contains the indicator menu. The WindowPicker
-            // can't pick a metaWindow, even though the '[inspect x: ${stageX} y: ${stageY}]' 
-            // displays the information about the target metaWindow.
-            
-            // The second layer contains the target metaWindow, allowing the WindowPicker 
-            // to pick it.
-
-            // indicator.menu.destroy();
-            // indicator.menu.actor.hide();
-            // Main.uiGroup.remove_child(indicator.menu.actor);
-            
-            if (indicator.menu.isOpen) {
-                indicator.menu.close();
-            }
-        }
     }
 
     getMetaWindowById(windowId) {
@@ -199,27 +117,7 @@ var ReadingStrip = class {
         return dbusConnection;
     }
 
-    // follow cursor position, and monitor as well
-    syncStrip(monitor_changed = false) {
-        const currentMonitor = Main.layoutManager.currentMonitor;
-        const [x, y] = global.get_pointer();
-        if (monitor_changed) {
-            this.strip_h.x = currentMonitor.x;
-            this.strip_h.width = currentMonitor.width;
-
-            this.strip_v.x = x - this.strip_v.width;
-            this.strip_v.height = currentMonitor.height;
-
-        }
-
-        this.strip_h.y = (y - this.strip_h.height / 2) + 200;
-        this.strip_v.y = currentMonitor.y;
-        log('syncStrip ' + this.strip_h.visible)
-    }
-
     destroy() {
-        Main.uiGroup.remove_child(this.strip_h);
-        Main.uiGroup.remove_child(this.strip_v);
 
         if (this.setting_changed_signal_ids.length) {
             this.setting_changed_signal_ids.forEach(id => this.settings.disconnect(id));
@@ -227,11 +125,13 @@ var ReadingStrip = class {
         }
 
         if (this.strip_h) {
+            Main.uiGroup.remove_child(this.strip_h);
             this.strip_h.destroy();
             this.strip_h = null;
         }
 
         if (this.strip_v) {
+            Main.uiGroup.remove_child(this.strip_v);
             this.strip_v.destroy();
             this.strip_v = null;
         }
