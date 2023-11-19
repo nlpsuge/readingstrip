@@ -7,6 +7,8 @@ const ExtensionUtils = imports.misc.extensionUtils;
 const Extension = ExtensionUtils.getCurrentExtension();
 
 const DragAndDropSupport = Extension.imports.dragAndDropSupport;
+const WindowPicker = Extension.imports.utils.WindowPicker;
+const MetaWindowUtils = Extension.imports.utils.metaWindowUtils;
 
 var DragState = {
     INIT:      0,
@@ -76,8 +78,8 @@ var ReadingStrip = class {
         }));
 
         // load previous state
-        if (this.settings.get_boolean('enabled'))
-            this.toggleReadingStrip(indicator);
+        // if (this.settings.get_boolean('enabled'))
+        //     this.toggleReadingStrip(indicator);
 
         // synchronize hot key
         Main.wm.addKeybinding('hotkey', settings,
@@ -91,7 +93,7 @@ var ReadingStrip = class {
     }
 
     // toggle strip on or off
-    toggleReadingStrip(indicator) {
+    toggleReadingStrip1(indicator) {
         const panelButtonIcon_on = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-on-symbolic.svg`);
         const panelButtonIcon_off = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-off-symbolic.svg`);
 
@@ -103,8 +105,98 @@ var ReadingStrip = class {
         }
         this.strip_h.visible = !this.strip_h.visible;
         this.strip_v.visible = this.strip_h.visible;
-        log('toggleReadingStrip ' + this.strip_h.visible)
         this.settings.set_boolean('enabled', this.strip_h.visible);
+    }
+
+    toggleReadingStrip(indicator) {
+        if (this._dbusConnection) {
+			// Unsubscribe the existing PickWindow DBus service, just in case of modifying another entry.
+			Gio.DBus.session.signal_unsubscribe(this._dbusConnection);
+			this._dbusConnection = null;
+		}
+
+        Gio.DBus.session.call(
+			'org.gnome.Shell',
+			'/org/gnome/shell/extensions/stripcover',
+			'org.gnome.Shell.Extensions.stripcover.PickWindow', 'PickWindow',
+			null, null, Gio.DBusCallFlags.NO_AUTO_START, -1, null, null);
+
+		this._dbusConnection = this._subscribeSignal('WindowPicked', (conn, sender, obj_path, iface, signal, windowIdVariant) => {
+			// Unsubscribe the PickWindow DBus service, it's really no necessary to keep the subscription all the time
+			Gio.DBus.session.signal_unsubscribe(this._dbusConnection);
+			this._dbusConnection = null;
+
+			const windowIdArray = windowIdVariant.recursiveUnpack();
+			// Pick nothing, so we ignore this pick
+			if(!windowIdArray.length) {
+				return;
+			}
+
+			const [windowId] = windowIdArray;
+
+            let targetMetaWindow = this.getMetaWindowById(windowId);
+            if (targetMetaWindow) {                
+                const targetMetaWindowRect = targetMetaWindow.get_frame_rect();
+                const y = targetMetaWindowRect.y + Math.round(targetMetaWindowRect.height * 0.8);
+                // this.layout_h.width = targetMetaWindowRect.width;
+                // this.layout_h.set_position(targetMetaWindowRect.x, y);
+                log(targetMetaWindowRect.x)
+                log(targetMetaWindowRect.y);
+                this.layout_h.set_position(targetMetaWindowRect.x, targetMetaWindowRect.y);
+                this.layout_h.visible = true;
+            }
+		});
+
+        this._subscribeSignal('WindowPickCancelled', () => {
+            // Unsubscribe the PickWindow DBus service, it's really no necessary to keep the subscription all the time
+            Gio.DBus.session.signal_unsubscribe(this._dbusConnection);
+            this._dbusConnection = null;
+        });
+
+    }
+
+    _closeTopLayer(indicator) {
+        if (indicator.menu) {
+            // If we don't close the indicator menu here, two hidden
+            // layers will be on the top of screen.
+
+            // The first layer contains the indicator menu. The WindowPicker
+            // can't pick a metaWindow, even though the '[inspect x: ${stageX} y: ${stageY}]' 
+            // displays the information about the target metaWindow.
+            
+            // The second layer contains the target metaWindow, allowing the WindowPicker 
+            // to pick it.
+
+            // indicator.menu.destroy();
+            // indicator.menu.actor.hide();
+            // Main.uiGroup.remove_child(indicator.menu.actor);
+            
+            if (indicator.menu.isOpen) {
+                indicator.menu.close();
+            }
+        }
+    }
+
+    getMetaWindowById(windowId) {
+        let targetMetaWindow;
+        let windows = global.get_window_actors();
+        for (let i = 0; i < windows.length; i++) {
+            let metaWindow = windows[i].metaWindow;
+            if (MetaWindowUtils.getStableWindowId(metaWindow) === windowId) {
+                targetMetaWindow = metaWindow;
+                break;
+            }
+        }
+        return targetMetaWindow;
+    }
+
+    _subscribeSignal(signalName, callback) {
+        const dbusConnection = Gio.DBus.session.signal_subscribe(
+            'org.gnome.Shell', 'org.gnome.Shell.Extensions.stripcover.PickWindow', 
+            signalName,
+            '/org/gnome/shell/extensions/stripcover', null, Gio.DBusSignalFlags.NONE, 
+            callback);
+        return dbusConnection;
     }
 
     // follow cursor position, and monitor as well

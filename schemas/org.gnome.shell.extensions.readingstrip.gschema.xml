@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-	<schema id="org.gnome.shell.extensions.readingstrip" path="/org/gnome/shell/extensions/readingstrip/">
+	<schema id="org.gnome.shell.extensions.stripcover" path="/org/gnome/shell/extensions/stripcover/">
 		<key name="enabled" type="b">
 			<default>true</default>
 			<summary>State of extension, whether it's enabled or disabled using indicator icon in panel</summary>

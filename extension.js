@@ -22,12 +22,14 @@ const ExtensionUtils = imports.misc.extensionUtils;
 const Extension = ExtensionUtils.getCurrentExtension();
 
 const ReadingStrip = Extension.imports.readingStrip;
+const WindowPicker = Extension.imports.utils.WindowPicker;
 
 const interval = 1000 / 60;
 
 let indicator, panelButtonIcon;
 let readingStrip;
 let settings;
+let _windowPickerServiceProvider;
 
 // Indicator on panel
 const ReadingStripIndicator = GObject.registerClass(
@@ -48,6 +50,9 @@ const ReadingStripIndicator = GObject.registerClass(
 
 function enable() {
 	settings = ExtensionUtils.getSettings();
+
+	_windowPickerServiceProvider = new WindowPicker.WindowPickerServiceProvider();
+    _windowPickerServiceProvider.enable();
 
 	// add button to top panel
 	indicator = new ReadingStripIndicator();
@@ -77,5 +82,10 @@ function disable() {
 	if (settings) {
 		settings = null;
 	}
+
+	if (_windowPickerServiceProvider) {
+        _windowPickerServiceProvider.destroy();
+        _windowPickerServiceProvider = null;
+    }
 
 }
