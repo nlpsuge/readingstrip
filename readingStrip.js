@@ -64,15 +64,7 @@ var ReadingStrip = class {
 
         // synchronize extension state with current settings
         this.setting_changed_signal_ids.push(this.settings.connect('changed', () => {
-            this.strip_h.style = 'background-color : ' + this.settings.get_string('color-strip');
-            this.strip_h.opacity = this.settings.get_double('opacity') * 255/100;
-            let currentMonitor = Main.layoutManager.currentMonitor;
-            this.strip_h.height = this.settings.get_double('height') * currentMonitor.height/100;
-
-            this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
-            this.strip_v.style = this.strip_h.style;
-            this.strip_v.opacity = this.strip_h.opacity;
-            this.strip_v.width = this.strip_h.height / 4;
+            this._updateStrip();
         }));
 
         // load previous state
@@ -90,6 +82,19 @@ var ReadingStrip = class {
 
     }
 
+    _updateStrip() {
+        this.strip_h.style = 'background-color : ' + this.settings.get_string('color-strip');
+        this.strip_h.opacity = this.settings.get_double('opacity') * 255 / 100;
+        log('cccc opacity ' + this.strip_h.opacity);
+        let currentMonitor = Main.layoutManager.currentMonitor;
+        this.strip_h.height = this.settings.get_double('height') * currentMonitor.height / 100;
+
+        this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
+        this.strip_v.style = this.strip_h.style;
+        this.strip_v.opacity = this.strip_h.opacity;
+        this.strip_v.width = this.strip_h.height / 4;
+    }
+
     // toggle strip on or off
     toggleReadingStrip(indicator) {
         const panelButtonIcon_on = Gio.icon_new_for_string(`${Extension.path}/icons/readingstrip-on-symbolic.svg`);
@@ -103,8 +108,11 @@ var ReadingStrip = class {
         }
         this.strip_h.visible = !this.strip_h.visible;
         this.strip_v.visible = this.strip_h.visible;
+        this.strip_h.visible = true;
         log('toggleReadingStrip ' + this.strip_h.visible)
-        this.settings.set_boolean('enabled', this.strip_h.visible);
+        // this.settings.set_boolean('enabled', this.strip_h.visible);
+
+        this._updateStrip();
     }
 
     // follow cursor position, and monitor as well
