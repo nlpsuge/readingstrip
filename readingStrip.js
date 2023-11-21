@@ -83,9 +83,12 @@ var ReadingStrip = class {
     }
 
     _updateStrip() {
+        // this.strip_h.style is null
+        log('this.strip_h.style b ' + this.strip_h.style);
         this.strip_h.style = 'background-color : ' + this.settings.get_string('color-strip');
+        log('this.strip_h.style a ' + this.strip_h.style);
         this.strip_h.opacity = this.settings.get_double('opacity') * 255 / 100;
-        log('cccc opacity ' + this.strip_h.opacity);
+        log('this.strip_h.opacity ' + this.strip_h.opacity);
         let currentMonitor = Main.layoutManager.currentMonitor;
         this.strip_h.height = this.settings.get_double('height') * currentMonitor.height / 100;
 
