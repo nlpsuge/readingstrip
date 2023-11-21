@@ -95,6 +95,10 @@ var ReadingStrip = class {
         log('this.strip_h.height ' + this.strip_h.height);
         log('this.strip_h.width ' + this.strip_h.width);
 
+        log('this.strip_h.x ' + this.strip_h.x);
+        log('this.strip_h.y ' + this.strip_h.y);
+
+
         this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
         this.strip_v.style = this.strip_h.style;
         this.strip_v.opacity = this.strip_h.opacity;
