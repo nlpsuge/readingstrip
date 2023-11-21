@@ -46,7 +46,10 @@ var ReadingStrip = class {
         this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(this.layout_h);
         const md = this.dragAndDropSupport.makeDraggable();
 
-        Main.layoutManager.addChrome(this.layout_h);
+        // works
+        // Main.layoutManager.addChrome(this.layout_h);
+        // Works 
+        Main.uiGroup.add_child(this.layout_h);
 
         md.dragAndDropSupport = this.dragAndDropSupport;
 
