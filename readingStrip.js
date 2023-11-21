@@ -29,51 +29,6 @@ var ReadingStrip = class {
 
     }
 
-    toggleReadingStrip3(indicator) {
-        const layout_h = new St.BoxLayout({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            // visible: false,
-            vertical: false,
-        });
-        
-        const stripCoverWidget = new St.Widget({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-            visible: false
-        });
-
-        layout_h.add(stripCoverWidget);
-
-        this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(layout_h);
-        this.dragAndDropSupport.makeDraggable();
-
-        // stripCoverWidget.set_position(targetMetaWindowRect.x, targetMetaWindowRect.y);
-        // stripCoverWidget.height =  targetMetaWindowRect.height;
-        stripCoverWidget.x =  0;
-        stripCoverWidget.y =  228;
-        stripCoverWidget.height =  100;
-        stripCoverWidget.width =  1910;
-        stripCoverWidget.style = 'background-color : rgb(246,211,45)';
-        stripCoverWidget.visible = true;
-        stripCoverWidget.opacity = 89;
-        Main.uiGroup.add_child(layout_h);
-
-        log('this.strip_h.style ' + stripCoverWidget.style);
-        log('this.strip_h.opacity ' + stripCoverWidget.opacity);
-        log('this.strip_h.visible ' + stripCoverWidget.visible);
-        log('this.strip_h.height ' + stripCoverWidget.height);
-        log('this.strip_h.width ' + stripCoverWidget.width);
-        log('this.strip_h.x ' + stripCoverWidget.x);
-        log('this.strip_h.y ' + stripCoverWidget.y);
-        log('layout_h.visible ' + layout_h.visible);
-        log('stripCoverWidget.get_parent() ' + stripCoverWidget.get_parent());
-        log('layout_h.get_parent() ' + layout_h.get_parent());
-
-    }
-
     toggleReadingStrip(indicator) {
         if (this._dbusConnection) {
 			// Unsubscribe the existing PickWindow DBus service, just in case of modifying another entry.
@@ -103,7 +58,15 @@ var ReadingStrip = class {
             let targetMetaWindow = this.getMetaWindowById(windowId);
             if (targetMetaWindow) {
                 const targetMetaWindowRect = targetMetaWindow.get_frame_rect();
-                const y = targetMetaWindowRect.y + Math.round(targetMetaWindowRect.height * 0.8);
+                log('targetMetaWindowRect.x ' + targetMetaWindowRect.x)
+                log('targetMetaWindowRect.y ' + targetMetaWindowRect.y)
+                log('targetMetaWindowRect.width ' + targetMetaWindowRect.width)
+                log('targetMetaWindowRect.height ' + targetMetaWindowRect.height)
+                const x = targetMetaWindowRect.x;
+                const y = targetMetaWindowRect.y;// + Math.round(targetMetaWindowRect.height * 0.8);
+                const width = targetMetaWindowRect.width;
+                const height = targetMetaWindowRect.height;
+
                 log(targetMetaWindow.get_title() + ' ' + y)
                 
                 const layout = new St.BoxLayout({
@@ -126,45 +89,27 @@ var ReadingStrip = class {
                 this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(layout);
                 this.dragAndDropSupport.makeDraggable();
 
-                // stripCoverWidget.set_position(targetMetaWindowRect.x, targetMetaWindowRect.y);
-                // stripCoverWidget.height =  targetMetaWindowRect.height;
-                stripCoverWidget.x =  0;
-                stripCoverWidget.y =  228;
-                stripCoverWidget.height =  100;
-                stripCoverWidget.width =  1910;
-                stripCoverWidget.style = 'background-color : rgb(246,211,45)';
-                stripCoverWidget.visible = true;
-                stripCoverWidget.opacity = 89;
+                const layoutHeight = 35;
+                const layoutMarginFromBottom = 96;
+                layout.style = 'background-color : rgb(246,211,45)';
+                layout.x = x;
+                layout.y = y + (height - layoutHeight - layoutMarginFromBottom);
+                layout.height = layoutHeight;
+                layout.width = width;
+                layout.opacity = 89;
+
                 Main.uiGroup.add_child(layout);
-                // Main.layoutManager.addChrome(layout_h);
-
-                // this._idleIdStripCoverWidget = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                //     Main.layoutManager.addChrome(stripCoverWidget);
-                //     // Main.uiGroup.add_child(stripCoverWidget);
-                //     this._idleIdStripCoverWidget = null;
-                //     return GLib.SOURCE_REMOVE;
-                // });
-
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000,
-                    () => {
-                        log('tiemout before addchrome')
-                        // Main.layoutManager.addChrome(layout_h);
-                        // Main.uiGroup.add_child(layout);
-
-            
-                        log('this.strip_h.style ' + stripCoverWidget.style);
-                        log('this.strip_h.opacity ' + stripCoverWidget.opacity);
-                        log('this.strip_h.visible ' + stripCoverWidget.visible);
-                        log('this.strip_h.height ' + stripCoverWidget.height);
-                        log('this.strip_h.width ' + stripCoverWidget.width);
-                        log('this.strip_h.x ' + stripCoverWidget.x);
-                        log('this.strip_h.y ' + stripCoverWidget.y);
-                        log('layout_h.visible ' + layout.visible);
-                        log('stripCoverWidget.get_parent() ' + stripCoverWidget.get_parent());
-                        log('layout_h.get_parent() ' + layout.get_parent());
-    
-                        return GLib.SOURCE_REMOVE;
-                    });
+                
+                log('this.strip_h.style ' + stripCoverWidget.style);
+                log('this.strip_h.opacity ' + stripCoverWidget.opacity);
+                log('this.strip_h.visible ' + stripCoverWidget.visible);
+                log('this.strip_h.height ' + stripCoverWidget.height);
+                log('this.strip_h.width ' + stripCoverWidget.width);
+                log('this.strip_h.x ' + stripCoverWidget.x);
+                log('this.strip_h.y ' + stripCoverWidget.y);
+                log('layout_h.visible ' + layout.visible);
+                log('stripCoverWidget.get_parent() ' + stripCoverWidget.get_parent());
+                log('layout_h.get_parent() ' + layout.get_parent());
                 
             }
 		});
