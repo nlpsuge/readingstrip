@@ -64,6 +64,7 @@ var ReadingStrip = class {
 
         // synchronize extension state with current settings
         this.setting_changed_signal_ids.push(this.settings.connect('changed', () => {
+            log('changed')
             this._updateStrip();
         }));
 
@@ -91,6 +92,8 @@ var ReadingStrip = class {
         log('this.strip_h.opacity ' + this.strip_h.opacity);
         let currentMonitor = Main.layoutManager.currentMonitor;
         this.strip_h.height = this.settings.get_double('height') * currentMonitor.height / 100;
+        log('this.strip_h.height ' + this.strip_h.height);
+        log('this.strip_h.width ' + this.strip_h.width);
 
         this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
         this.strip_v.style = this.strip_h.style;
