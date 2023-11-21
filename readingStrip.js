@@ -72,8 +72,8 @@ var ReadingStrip = class {
         }));
 
         // load previous state
-        if (this.settings.get_boolean('enabled'))
-            this.toggleReadingStrip(indicator);
+        // if (this.settings.get_boolean('enabled'))
+        //     this.toggleReadingStrip(indicator);
 
         // synchronize hot key
         Main.wm.addKeybinding('hotkey', settings,
@@ -102,10 +102,10 @@ var ReadingStrip = class {
         log('this.strip_h.y ' + this.strip_h.y);
 
 
-        this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
-        this.strip_v.style = this.strip_h.style;
-        this.strip_v.opacity = this.strip_h.opacity;
-        this.strip_v.width = this.strip_h.height / 4;
+        // this.strip_v.visible = this.strip_h.visible && this.settings.get_boolean('vertical');
+        // this.strip_v.style = this.strip_h.style;
+        // this.strip_v.opacity = this.strip_h.opacity;
+        // this.strip_v.width = this.strip_h.height / 4;
     }
 
     // toggle strip on or off
@@ -118,6 +118,10 @@ var ReadingStrip = class {
         } else {
             indicator.gicon = panelButtonIcon_on;
             this.syncStrip(true);
+            // note that non-zero width are necessary to show a widget
+            // this.strip_h.x = 0;
+            // this.strip_h.y = 1130;  
+            // this.strip_h.width = 1920;
         }
         this.strip_h.visible = !this.strip_h.visible;
         this.strip_v.visible = this.strip_h.visible;
