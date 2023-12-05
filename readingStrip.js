@@ -1,7 +1,8 @@
-const { St, Meta, Shell, Clutter, Gio, GLib } = imports.gi;
+const { St, Meta, Shell, Clutter, Gio, GLib, Cogl, GObject } = imports.gi;
 
 const Main = imports.ui.main;
 const DND = imports.ui.dnd;
+const Screenshot = imports.ui.screenshot;
 
 const ExtensionUtils = imports.misc.extensionUtils;
 const Extension = ExtensionUtils.getCurrentExtension();
@@ -55,19 +56,19 @@ var ReadingStrip = class {
 
 			const [windowId] = windowIdArray;
 
-            let targetMetaWindow = this.getMetaWindowById(windowId);
-            if (targetMetaWindow) {
-                const targetMetaWindowRect = targetMetaWindow.get_frame_rect();
-                log('targetMetaWindowRect.x ' + targetMetaWindowRect.x)
-                log('targetMetaWindowRect.y ' + targetMetaWindowRect.y)
-                log('targetMetaWindowRect.width ' + targetMetaWindowRect.width)
-                log('targetMetaWindowRect.height ' + targetMetaWindowRect.height)
-                const x = targetMetaWindowRect.x;
-                const y = targetMetaWindowRect.y;// + Math.round(targetMetaWindowRect.height * 0.8);
-                const width = targetMetaWindowRect.width;
-                const height = targetMetaWindowRect.height;
+            let chosenMetaWindow = this.getMetaWindowById(windowId);
+            if (chosenMetaWindow) {
+                const chosenMetaWindowRect = chosenMetaWindow.get_frame_rect();
+                log('chosenMetaWindowRect.x ' + chosenMetaWindowRect.x)
+                log('chosenMetaWindowRect.y ' + chosenMetaWindowRect.y)
+                log('chosenMetaWindowRect.width ' + chosenMetaWindowRect.width)
+                log('chosenMetaWindowRect.height ' + chosenMetaWindowRect.height)
+                const originalX = chosenMetaWindowRect.x;
+                const originalY = chosenMetaWindowRect.y;// + Math.round(chosenMetaWindowRect.height * 0.8);
+                const originalWidth = chosenMetaWindowRect.width;
+                const originalHeight = chosenMetaWindowRect.height;
 
-                log(targetMetaWindow.get_title() + ' ' + y)
+                log(chosenMetaWindow.get_title() + ' ' + originalY)
                 
                 const layout = new St.BoxLayout({
                     reactive: true,
@@ -87,18 +88,40 @@ var ReadingStrip = class {
                 layout.add(stripCoverWidget);
         
                 this.dragAndDropSupport = new DragAndDropSupport.DragAndDropSupport(layout);
-                this.dragAndDropSupport.makeDraggable();
+                this.dragAndDropSupport.makeDraggable();                
 
                 const layoutHeight = 35;
                 const layoutMarginFromBottom = 96;
-                layout.style = 'background-color : rgb(246,211,45)';
-                layout.x = x;
-                layout.y = y + (height - layoutHeight - layoutMarginFromBottom);
-                layout.height = layoutHeight;
-                layout.width = width;
-                layout.opacity = 89;
+                // layout.style = 'background-color : rgb(246,211,45)';
+                layout.x = originalX;
+                // layout.y = originalY + (originalHeight - layoutHeight - layoutMarginFromBottom);
+                layout.y = originalY;
+                // layout.height = layoutHeight;
+                layout.height = originalHeight;
+                layout.width = originalWidth;
+                layout.opacity = 100;
 
                 Main.uiGroup.add_child(layout);
+
+                const windowCloneWidget = this._getWindowCloneWidget(chosenMetaWindow);
+                // windowCloneWidget.set_clip(
+                //     layout.x,
+                //     layout.y,
+                //     // 0, 0,
+                //     layout.width,
+                //     layout.height,
+                // );
+                // windowCloneWidget.set_clip_to_allocation(true);
+                // windowCloneWidget.set_position(originalX, originalY);
+                windowCloneWidget.set_size(originalHeight, originalWidth);
+                
+
+                log('windowCloneWidget.height ' + windowCloneWidget.height);
+                log('windowCloneWidget.width ' + windowCloneWidget.width);
+                log('windowCloneWidget.x ' + windowCloneWidget.x);
+                log('windowCloneWidget.y ' + windowCloneWidget.y);
+
+                layout.add(windowCloneWidget);
                 
                 log('this.strip_h.style ' + stripCoverWidget.style);
                 log('this.strip_h.opacity ' + stripCoverWidget.opacity);
@@ -122,17 +145,119 @@ var ReadingStrip = class {
 
     }
 
+    /**
+     * This function is adapted from https://github.com/home-sweet-gnome/dash-to-panel
+     */
+    _getWindowCloneWidget(window) {
+        let frameRect = window.get_frame_rect();
+        let bufferRect = window.get_buffer_rect();
+        let clone = new Clutter.Clone({ source: window.get_compositor_private() });
+        let cloneWidget = new St.Widget({
+            opacity: 100,
+            layout_manager: 
+                            // frameRect.width != bufferRect.width || 
+                            // frameRect.height != bufferRect.height ?
+                            new WindowCloneLayout(frameRect, bufferRect)
+                            // :
+                            // new Clutter.BinLayout()
+        });
+        
+        cloneWidget.add_child(clone);
+
+        return cloneWidget;
+    }
+
+    async _takeScreenshot(window, widget) {
+        try {
+            const actor = window.get_compositor_private();
+            const content = actor.paint_to_content(null);
+            const texture = content.get_texture();
+
+            // Screenshot.captureScreenshot(texture, null, 1, null);
+
+            const scale = 1;
+            const stream = Gio.MemoryOutputStream.new_resizable();
+            const [x, y, w, h] = [0, 0, -1, -1];
+            const cursor = { texture: null, x: 0, y: 0, scale: 1 };
+
+            global.display.get_sound_player().play_from_theme(
+                'screen-capture', _('Screenshot taken'), null);
+
+            const pixbuf = await Shell.Screenshot.composite_to_stream(
+                texture,
+                x, y, w, h,
+                scale,
+                cursor.texture, cursor.x, cursor.y, cursor.scale,
+                stream
+            );
+
+            stream.close(null);
+
+            const imageBytes = stream.steal_as_bytes();
+            
+            
+
+            // Apply the mosaic effect
+            const mosaicSize = 10;
+            for (let mosaicX = 0; mosaicX < pixbuf.width; mosaicX += mosaicSize) {
+                for (let mosaicY = 0; mosaicY < pixbuf.height; mosaicY += mosaicSize) {
+                    const color = pixbuf.get_pixels().slice(
+                        (mosaicY * pixbuf.rowstride) + (mosaicX * pixbuf.n_channels),
+                        (mosaicY * pixbuf.rowstride) + ((mosaicX + mosaicSize) * pixbuf.n_channels)
+                    );
+
+                    // Get the first pixel value to fill with
+                    const pixelValue = color[0];
+
+                    // Fill the mosaic block with the pixel value
+                    pixbuf.fill(pixelValue);
+                }
+            }
+
+            const pixels = pixbuf.read_pixel_bytes();
+            const imageContent =
+                St.ImageContent.new_with_preferred_size(pixbuf.width, pixbuf.height);
+            imageContent.set_bytes(
+                pixels,
+                Cogl.PixelFormat.RGBA_8888,
+                pixbuf.width,
+                pixbuf.height,
+                pixbuf.rowstride
+            );
+
+            // Create a Clutter image from the Pixbuf
+            // const imageMosaic = new Clutter.Image();
+            // imageMosaic.set_data(pixbuf.get_pixels(), pixbuf.get_colorspace(), true, pixbuf.width, pixbuf.height, pixbuf.rowstride);
+
+            // const stTexture = St.TextureCache.get_default().create();
+            // // const stTexture = new St.Texture({ width: 1, height: 1, reactive: true });
+            // stTexture.set_data(imageMosaic.get_cogl_texture(), pixbuf.width, pixbuf.height);
+
+            const bytes = imageContent.get_bytes();
+            const clutterBytes = new Clutter.Bytes({ data: bytes });
+            const clutterImage = Clutter.Image.new();
+            clutterImage.set_from_bytes(clutterBytes);
+
+            widget.add_child(clutterImage);
+
+            // _storeScreenshot(stream.steal_as_bytes(), pixbuf);
+            
+        } catch (e) {
+            logError(e, 'Error capturing screenshot');
+        }
+    }
+
     getMetaWindowById(windowId) {
-        let targetMetaWindow;
+        let chosenMetaWindow;
         let windows = global.get_window_actors();
         for (let i = 0; i < windows.length; i++) {
             let metaWindow = windows[i].metaWindow;
             if (MetaWindowUtils.getStableWindowId(metaWindow) === windowId) {
-                targetMetaWindow = metaWindow;
+                chosenMetaWindow = metaWindow;
                 break;
             }
         }
-        return targetMetaWindow;
+        return chosenMetaWindow;
     }
 
     _subscribeSignal(signalName, callback) {
@@ -169,3 +294,39 @@ var ReadingStrip = class {
     }
 
 }
+
+var WindowCloneLayout = GObject.registerClass({
+}, class WindowCloneLayout extends Clutter.BinLayout {
+
+    _init(frameRect, bufferRect) {
+        super._init();
+
+        //the buffer_rect contains the transparent padding that must be removed
+        this.frameRect = frameRect;
+        this.bufferRect = bufferRect;
+    }
+
+    vfunc_allocate(actor, box) {
+        let [width, height] = box.get_size();
+
+        log('this.bufferRect.x ' + this.bufferRect.x)
+        log('this.bufferRect.y ' + this.bufferRect.y)
+        log('this.frameRect.x ' + this.frameRect.x)
+        log('this.frameRect.y ' + this.frameRect.y)
+        // log('this.ratio ' + this.ratio)
+        // log('this.padding[0] ' + this.padding[0])
+        // log('this.padding[1] ' + this.padding[1])
+
+        box.set_origin(
+            (this.bufferRect.x - this.frameRect.x),// * this.ratio + this.padding[0], 
+            (this.bufferRect.y - this.frameRect.y)// * this.ratio + this.padding[1]
+        );
+
+        box.set_size(
+            width + (this.bufferRect.width - this.frameRect.width),// * this.ratio, 
+            height + (this.bufferRect.height - this.frameRect.height)// * this.ratio
+        );
+
+        actor.get_first_child().allocate(box);
+    }
+});
